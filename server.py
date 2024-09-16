@@ -14,8 +14,7 @@ def start():
     while True:
         clientsocket, address = s.accept()
         print(f"{address} se conectou ao servidor")
-        for i in range(10):
-            clientsocket.send(bytes(f"Contagem: {i}", "utf-8"))
+        print(clientsocket.recv(1024))
         clientsocket.close()
             
 
