@@ -22,5 +22,21 @@ def timer():
             print(f"{response} nao foi possivel")
             break
 
+
+def checkSum(mensagem):
+    mensagem = mensagem.encode("utf-8")
+
+    checksum = 0
+
+    for byte in mensagem:
+        checksum += byte
+
+    checksum = bin(checksum)[2:]
+
+    return checksum
+
+mensagem = "test"
+checksum = checkSum(mensagem)
+print(checksum)
 timer()
 print("Programa Encerrado")
