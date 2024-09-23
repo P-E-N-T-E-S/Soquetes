@@ -6,8 +6,9 @@ s.connect((socket.gethostname(), 1234))
 
 def send():
     i = input("Digite a mensagem para ser enviada: ")
-    checksum = bytes(i, encoding="ASCII")
-    s.send(bytes(f"Mensagem de hoje: {i}", "utf-8"))
+    checksum = checkSum(i)
+    mensagem_completa = f"{i}|{checksum}"
+    s.send(bytes(mensagem_completa, "utf-8"))
 
 def timer():
     mustend = (time.time() + 50)
