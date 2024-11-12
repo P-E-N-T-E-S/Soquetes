@@ -3,62 +3,65 @@ import time
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-setfail: bool = False
-checksumfail: bool = False
+falha_tempo = False
+falha_checksum = False
+tamanho_janela = 2 
 
-def create():
+def criar():
     s.bind((socket.gethostname(), 1234))
     s.listen(5)
 
-def start():
-    global checksumfail
+def init():
+    global falha_checksum, tamanho_janela
     while True:
-        clientsocket, address = s.accept()
-        print(f"{address} se conectou ao servidor")
-        data = clientsocket.recv(1024).decode("utf-8")
-        mensagens = data.split('|')
-        
-        if len(mensagens) != 3:
-            print("Formato de mensagem incorreto")
-            clientsocket.send(bytes("nack", "utf-8"))
-            clientsocket.close()
-            continue
+        cliente_socket, endereco = s.accept()
+        print(f"{endereco} se conectou ao servidor")
 
-        escolha, mensagem, checksum = mensagens[0], mensagens[1], mensagens[2]
-        escolha = int(escolha)
-        end_timer = (time.time() + 5)
+        pacotes_recebidos = 0
+        while pacotes_recebidos < tamanho_janela:
+            dados = cliente_socket.recv(1024).decode("utf-8")
+            if not dados:
+                break
+            
+            mensagens = dados.split('|')
+            if len(mensagens) != 3:
+                print("Formato de mensagem incorreto")
+                cliente_socket.send(bytes("nack", "utf-8"))
+                continue
 
-        if escolha == 2:
-            time.sleep(6)
-        elif escolha == 3:
-            checksumfail = True
-        
-        if data and time.time() < end_timer:
-            if confirm_checksum(mensagem, checksum):
-                print(f"Mensagem recebida: {mensagem}")
+            escolha, mensagem, checksum = mensagens[0], mensagens[1], mensagens[2]
+            escolha = int(escolha)
+            tempo_limite = (time.time() + 10)
+
+            if escolha == 2:
+                time.sleep(6)
+            elif escolha == 3:
+                falha_checksum = True
+
+            if confirmar_checksum(mensagem, checksum):
+                print(f"Pacote recebido: {mensagem}")
                 print(f"Checksum recebido: {checksum}")
-                clientsocket.send(bytes("ack", "utf-8"))
+                cliente_socket.send(bytes("ack", "utf-8"))
+                pacotes_recebidos += 1
             else:
                 print("Checksum incorreto")
-                clientsocket.send(bytes("nack", "utf-8"))
-        else:
-            print("Tempo esgotado ou dados inválidos")
-            clientsocket.send(bytes("nack", "utf-8"))
+                cliente_socket.send(bytes("nack", "utf-8"))
+        
+        tamanho_janela = min(tamanho_janela + 1, 4)
 
-        clientsocket.close()
-    s.close()
+        cliente_socket.close()
 
-def confirm_checksum(mensagem, checksum):
+def confirmar_checksum(mensagem, checksum):
     mensagem = mensagem.encode("utf-8")
-    calc_checksum = sum(mensagem)
-    calc_checksum = bin(calc_checksum)[2:]
-    
-    if checksumfail:
+    checksum_calculado = sum(mensagem)
+    checksum_calculado = bin(checksum_calculado)[2:]
+
+    if falha_checksum:
         checksum_simulado = int(checksum, 2) + 1
         checksum_simulado = bin(checksum_simulado)[2:]
-        return calc_checksum == checksum_simulado
+        return checksum_calculado == checksum_simulado
     else:
-        return calc_checksum == checksum
+        return checksum_calculado == checksum
 
-create()
-start()
+criar()
+iniciar()
