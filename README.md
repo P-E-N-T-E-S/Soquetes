@@ -59,7 +59,7 @@ A aplicação permite a simulação de falhas de integridade e perdas de mensage
 
 ## 📎 Requisitos
 - **Ambiente**: A aplicação requer um ambiente que suporte sockets para a comunicação entre cliente e servidor.
-- **Linguagem**: O projeto foi desenvolvido em [especificar a linguagem de programação, por exemplo, Python, Java, etc.].
+- **Linguagem**: O projeto foi desenvolvido em python.
 
 ## 👩‍💻 Membros de CC
 
