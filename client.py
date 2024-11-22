@@ -1,34 +1,42 @@
 import socket
 import time
+from dataclasses import dataclass
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect((socket.gethostname(), 1234))
+@dataclass
+class Pacote:
+    numero_sequencia: int
+    mensagem: str
+    checksum: str
+    janela: str
 
-tamanho_janela = 1
-tamanho_max_janela = 4
 
-def checkSum(mensagem):
+def calcular_checksum(mensagem):
     mensagem = mensagem.encode("utf-8")
-    checksum = 0
-    for byte in mensagem:
-        checksum += byte
-    checksum = bin(checksum)[2:]
-    return checksum
+    checksum = sum(mensagem)
+    return bin(checksum)[2:]
 
-def enviar_pacotes(escolha, num_pacotes=1):
-    mensagem = input("Digite a mensagem para ser enviada: ")
-    checksum = checkSum(mensagem)
+def criar_pacote(numero_sequencia, mensagem):
+    checksum = calcular_checksum(mensagem)
+    return Pacote(numero_sequencia=numero_sequencia, mensagem=mensagem, checksum=checksum)
+
+def enviar_pacotes(escolha):
+    mensagem = input("Digite a mensagem para enviar: ")
+    modo = input("Digite '1' para enviar um único pacote ou '2' para enviar em rajada: ")
     
-    if num_pacotes == 1:
-        print("Enviando um único pacote...")
-        mensagem_completa = f"{escolha}|{mensagem}|{checksum}"
-        s.send(bytes(mensagem_completa, "utf-8"))
+    if modo == '1':
+        # Envio de um único pacote
+        pacote = criar_pacote(0, mensagem)
+        s.send(bytes(f"{pacote.numero_sequencia}|{pacote.mensagem}|{pacote.checksum}|{escolha}", "utf-8"))
+        print(f"Enviado pacote único: {pacote}")
+    elif modo == '2':
+        # Envio em rajada (caractere por caractere)
+        for numero_sequencia, caractere in enumerate(mensagem):
+            pacote = criar_pacote(numero_sequencia, caractere)
+            s.send(bytes(f"{pacote.numero_sequencia}|{pacote.mensagem}|{pacote.checksum}|{escolha}", "utf-8"))
+            print(f"Enviado pacote {numero_sequencia}: {pacote}")
+            time.sleep(1)
     else:
-        for indice, caractere in enumerate(mensagem):
-            mensagem_pacote = f"{escolha}|{caractere}|{checksum}"
-            print(f"Enviando pacote {indice + 1}/{len(mensagem)}: {caractere}")
-            s.send(bytes(mensagem_pacote, "utf-8"))
-            time.sleep(1) 
+        print("Modo inválido! Envio cancelado.")
 
 def menu():
     print("Selecione o tipo de erro a ser simulado:")
@@ -38,15 +46,29 @@ def menu():
     escolha = input("Digite o número da sua escolha: ")
     return escolha
 
-def temporizador():
-    escolha = menu()
-    num_pacotes = int(input("Digite o número de pacotes a serem enviados (1 para um único ou o tamanho da mensagem para rajada): "))
-    enviar_pacotes(escolha, num_pacotes)
-    resposta = s.recv(1024)
-    if resposta == b"ack":
-        print("Recebido ACK: Pacote(s) recebido(s) corretamente.")
-    else:
-        print("Recebido NACK: Erro na recepção dos pacotes.")
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((socket.gethostname(), 1234))
 
-temporizador()
-print("Programa Encerrado")
+def iniciar_cliente():
+    escolha = menu()
+    enviar_pacotes(escolha)
+    while True:
+        resposta = s.recv(1024).decode("utf-8")
+        if not resposta:
+            break
+
+        partes = resposta.split('|')
+        tipo_resposta = partes[0]
+
+        if tipo_resposta == "ack":
+            print(f"Recebido ACK para pacote {partes[1]}")
+        elif tipo_resposta == "nack":
+            motivo = partes[2] if len(partes) > 2 else "desconhecido"
+            print(f"Recebido NACK para pacote {partes[1]}: motivo: {motivo}")
+
+            if motivo == "atraso":
+                print("Atraso detectado, aguardando...")
+                time.sleep(5)
+
+iniciar_cliente()
+s.close()

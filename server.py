@@ -1,67 +1,82 @@
 import socket
 import time
+from dataclasses import dataclass
+
+@dataclass
+class Pacote:
+    numero_sequencia: int
+    mensagem: str
+    checksum: str
+    janela: str
+
+    
+atraso_flag = False
+checksum_flag = False
+
+def calcular_checksum(mensagem):
+    mensagem = mensagem.encode("utf-8")
+    checksum = sum(mensagem)
+    return bin(checksum)[2:]
+
+def processar_pacote(dados):
+    partes = dados.split('|')
+    if len(partes) != 4:
+        return None
+    numero_sequencia = int(partes[0])
+    mensagem = partes[1]
+    checksum = partes[2]
+    escolha = int(partes[3])
+    return Pacote(numero_sequencia=numero_sequencia, mensagem=mensagem, checksum=checksum), escolha
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind((socket.gethostname(), 1234))
+s.listen(5)
 
-falha_tempo = False
-falha_checksum = False
-tamanho_janela = 2 
-
-def criar():
-    s.bind((socket.gethostname(), 1234))
-    s.listen(5)
-
-def init():
-    global falha_checksum, tamanho_janela
+def iniciar_servidor():
+    global atraso_flag, checksum_flag
+    print("Servidor aguardando conexões...")
     while True:
-        cliente_socket, endereco = s.accept()
-        print(f"{endereco} se conectou ao servidor")
-
-        pacotes_recebidos = 0
-        while pacotes_recebidos < tamanho_janela:
-            dados = cliente_socket.recv(1024).decode("utf-8")
+        conexao_cliente, endereco = s.accept()
+        print(f"Cliente conectado: {endereco}")
+        
+        while True:
+            dados = conexao_cliente.recv(1024).decode("utf-8")
             if not dados:
                 break
             
-            mensagens = dados.split('|')
-            if len(mensagens) != 3:
-                print("Formato de mensagem incorreto")
-                cliente_socket.send(bytes("nack", "utf-8"))
+            pacote, escolha = processar_pacote(dados)
+            if not pacote:
+                print("Pacote inválido.")
+                conexao_cliente.send(bytes("nack", "utf-8"))
                 continue
+            
+            print(f"Pacote recebido: {pacote}")
+            
+            # Configurando simulações com base na escolha
+            atraso_flag = escolha == 2
+            checksum_flag = escolha == 3
 
-            escolha, mensagem, checksum = mensagens[0], mensagens[1], mensagens[2]
-            escolha = int(escolha)
-            tempo_limite = (time.time() + 10)
+            if atraso_flag:
+                print("Simulando atraso de 5 segundos...")
+                time.sleep(5)
+                resposta = f"nack|{pacote.numero_sequencia}|atraso"
+                conexao_cliente.send(bytes(resposta, "utf-8"))
+                continue  # Não processa o pacote mais
 
-            if escolha == 2:
-                time.sleep(6)
-            elif escolha == 3:
-                falha_checksum = True
 
-            if confirmar_checksum(mensagem, checksum):
-                print(f"Pacote recebido: {mensagem}")
-                print(f"Checksum recebido: {checksum}")
-                cliente_socket.send(bytes("ack", "utf-8"))
-                pacotes_recebidos += 1
+            # Simulação de falha de checksum
+            if checksum_flag:
+                print("Simulando falha de checksum.")
+                pacote.checksum = "00000000"
+
+            # Validação do checksum
+            if calcular_checksum(pacote.mensagem) == pacote.checksum:
+                conexao_cliente.send(bytes(f"ack|{pacote.numero_sequencia}", "utf-8"))
+                print(f"Pacote {pacote.numero_sequencia} confirmado com sucesso.")
             else:
-                print("Checksum incorreto")
-                cliente_socket.send(bytes("nack", "utf-8"))
-        
-        tamanho_janela = min(tamanho_janela + 1, 4)
+                conexao_cliente.send(bytes(f"nack|{pacote.numero_sequencia}|checksum", "utf-8"))
+                print(f"Erro no pacote {pacote.numero_sequencia}: Checksum inválido.")
 
-        cliente_socket.close()
+        conexao_cliente.close()
 
-def confirmar_checksum(mensagem, checksum):
-    mensagem = mensagem.encode("utf-8")
-    checksum_calculado = sum(mensagem)
-    checksum_calculado = bin(checksum_calculado)[2:]
-
-    if falha_checksum:
-        checksum_simulado = int(checksum, 2) + 1
-        checksum_simulado = bin(checksum_simulado)[2:]
-        return checksum_calculado == checksum_simulado
-    else:
-        return checksum_calculado == checksum
-
-criar()
-iniciar()
+iniciar_servidor()
