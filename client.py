@@ -41,7 +41,7 @@ def enviar_pacotes(escolha):
     mensagem = input("Digite a mensagem para enviar: ")
     modo = input("Digite '1' para enviar um único pacote ou '2' para enviar em rajada: ")
 
-    cwnd = 2  # Janela de congestionamento inicial
+    cwnd = 1  # Janela de congestionamento inicial
     ssthresh = 16  # Limiar de lentidão inicial
     duplicados = 0  # Contador de ACKs duplicados
     max_cwnd = len(mensagem)  # Tamanho máximo para cwnd
@@ -75,11 +75,11 @@ def enviar_pacotes(escolha):
                 time.sleep(0.1)  # Simula atraso entre pacotes
 
             # Espera pela resposta do servidor para cada pacote da janela
-            respostas = []
-            for _ in range(len(janela_envio)):
-                resposta = s.recv(1024).decode("utf-8")
-                respostas.append(resposta)
-                print(f"Recebido: {resposta}")
+
+            resposta = s.recv(1024).decode("utf-8")
+            respostas = resposta.split('$$')[:-1]
+            for recebido in respostas:
+                print(f"Recebido: {recebido}")
 
             # Verifica a resposta do servidor
             sucesso = all(validar_checksum_resposta(r)[0] for r in respostas)

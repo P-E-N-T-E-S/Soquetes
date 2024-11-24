@@ -53,7 +53,7 @@ def iniciar_servidor():
             pacote, escolha, indice_erro = processar_pacote(dados)
             if not pacote:
                 print("Pacote inválido.")
-                conexao_cliente.send(bytes("nack|invalid", "utf-8"))
+                conexao_cliente.send(bytes("nack|invalid$$", "utf-8"))
                 continue
 
             print(f"Pacote recebido: {pacote}")
@@ -74,7 +74,7 @@ def iniciar_servidor():
                 # Resposta de ACK (confirmação)
                 resposta = f"ack|{pacote.numero_sequencia}"
                 checksum_resposta = calcular_checksum_resposta(resposta)
-                conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}", "utf-8"))
+                conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
                 print(f"Enviado ACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
             else:
                 # Resposta de NACK (falha na entrega)
