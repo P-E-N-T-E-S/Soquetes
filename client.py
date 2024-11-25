@@ -57,7 +57,7 @@ def enviar_pacotes(escolha):
         valida, checksum_recebido = validar_checksum_resposta(resposta)
         if valida:
             print(f"Resposta válida do servidor: {resposta}")
-        else:
+        elif valida == False and modo != '1':
             print(f"Erro no checksum da resposta! Resposta recebida: {resposta} \n Reenviando")
             s.send(bytes(f"{pacote.numero_sequencia}|{pacote.mensagem}|{pacote.checksum}|{escolha}|{metodo}|-1", "utf-8"))
             print(f"Enviado pacote único: {pacote}")
@@ -66,7 +66,6 @@ def enviar_pacotes(escolha):
 
         numero_sequencia = 0
         while numero_sequencia < len(mensagem):
-            # Determina o número de pacotes a enviar (respeitando cwnd)
             janela_envio = mensagem[numero_sequencia:numero_sequencia + cwnd]
             print(f"\n[Envio] Janela de envio: {len(janela_envio)}")
 
@@ -76,9 +75,8 @@ def enviar_pacotes(escolha):
                 mensagem_erro = f"{pacote.numero_sequencia}|{pacote.mensagem}|{'ERRO' if erro else pacote.checksum}|{escolha}|{metodo}|{pacote_com_erro}"
                 s.send(bytes(mensagem_erro, "utf-8"))
                 print(f"Enviado pacote {pacote.numero_sequencia}: {pacote} {'[ERRO]' if erro else ''}")
-                time.sleep(0.1)  # Simula atraso entre pacotes
+                time.sleep(0.1) 
 
-                # Espera pela resposta do servidor para cada pacote da janela
                 resposta = s.recv(1024).decode("utf-8")
                 respostas = resposta.split('$$')[:-1]
                 for recebido in respostas:
@@ -87,39 +85,34 @@ def enviar_pacotes(escolha):
                 if metodo == '1':
                     verificador = resposta.split('|')
                     for verificacao in verificador:
-                        if verificacao == pacote_erro :
-                            for j, caractere in enumerate(janela_envio):
-                                print("A")
-                                
+                        if verificacao == pacote_erro :         
+                            print(f"Enviado pacote {pacote.numero_sequencia}: {pacote} ")
+                            mensagem_erro = f"{pacote.numero_sequencia}|{pacote.mensagem}|{pacote.checksum}|{escolha}|{metodo}|{pacote_com_erro}"
+                            s.send(bytes(mensagem_erro, "utf-8"))               
 
-                if metodo == '2':
+                if metodo == '2' and modo != '1':
                     verificador = resposta.split('|')
                     for verificacao in verificador:
                         if verificacao == 'nack':
                             print(f"nack recebido, reenviando pacote n° {pacote.numero_sequencia}")
-                            print(f"Enviado pacote {pacote.numero_sequencia}: {pacote} {'[ERRO]' if erro else ''}")
+                            print(f"Enviado pacote {pacote.numero_sequencia}: {pacote} ")
                             mensagem_erro = f"{pacote.numero_sequencia}|{pacote.mensagem}|{pacote.checksum}|{escolha}|{metodo}|{pacote_com_erro}"
                             s.send(bytes(mensagem_erro, "utf-8"))
 
                 pacote_erro = resposta[4]
-                print(pacote_erro)
-        
-            # Verifica a resposta do servidor
+
             sucesso = all(validar_checksum_resposta(r)[0] for r in respostas)
             if sucesso:
                 print("[TCP Reno] Todos os pacotes da janela recebidos com sucesso.")
                 if cwnd < ssthresh:
-                    # Slow Start: Dobra o cwnd
                     cwnd = min(cwnd * 2, max_cwnd)
                 else:
-                    # Congestion Avoidance: Aumenta linearmente
                     cwnd += 1
                 duplicados = 0
             else:
-                # Erro detectado
                 print("[TCP Reno] Erro detectado! Ajustando ssthresh e reiniciando cwnd.")
-                ssthresh = max(cwnd // 2, 1)  # Ajusta o limiar
-                cwnd = 1  # Reinicia para Slow Start
+                ssthresh = max(cwnd // 2, 1)
+                cwnd = 1
                 duplicados += 1
 
             numero_sequencia += len(janela_envio)

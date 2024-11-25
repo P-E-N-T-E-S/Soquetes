@@ -9,6 +9,7 @@ class Pacote:
     mensagem: str
     checksum: str
 
+
 def calcular_checksum(mensagem):
     mensagem = mensagem.encode("utf-8")
     checksum = sum(mensagem)
@@ -35,75 +36,102 @@ def processar_pacote(dados):
 
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.settimeout(10)  # Tempo limite de 10 segundos
 s.bind((socket.gethostname(), 1234))
 s.listen(5)
 
 
 def iniciar_servidor():
-    errorOcurred: bool = False
+    error_occurred: bool = False
     pacote_com_erro = -1
     print("Servidor aguardando conexões...")
     while True:
-        conexao_cliente, endereco = s.accept()
-        print(f"Cliente conectado: {endereco}")
+        try:
+            conexao_cliente, endereco = s.accept()
+            print(f"Cliente conectado: {endereco}")
+        except socket.timeout:
+            print("Tempo limite de espera para conexão expirou. Tentando novamente...")
+            continue
 
         while True:
-            dados = conexao_cliente.recv(1024).decode("utf-8")
-            if not dados:
-                break
+            try:
+                print("Aguardando dados do cliente...")
+                dados = conexao_cliente.recv(1024).decode("utf-8")
+                if not dados:
+                    print("Conexão encerrada pelo cliente.")
+                    break
 
-            pacote, escolha, metodo, indice_erro = processar_pacote(dados)
-            if not pacote:
-                print("Pacote inválido.")
-                conexao_cliente.send(bytes("nack|invalid$$", "utf-8"))
-                continue
+                pacote, escolha, metodo, indice_erro = processar_pacote(dados)
+                if not pacote:
+                    print("Pacote inválido.")
+                    conexao_cliente.send(bytes("nack|invalid$$", "utf-8"))
+                    continue
 
-            print(f"Pacote recebido: {pacote}")
+                print(f"Pacote recebido: {pacote}")
 
-            # Simula atraso se o cliente escolheu a opção correspondente
-            if escolha == 2:
-                print("Simulando atraso de 5 segundos...")
-                time.sleep(5)
-
-            # Simula falha no checksum para o índice especificado
-            if (pacote.numero_sequencia == indice_erro) and (errorOcurred == False):
-                errorOcurred = True
-                print(f"Simulando falha de checksum no pacote {pacote.numero_sequencia}.")
-                pacote.checksum = "00000000"
-
-            # Validação do checksum
-            checksum_valido = calcular_checksum(pacote.mensagem) == pacote.checksum
-            if metodo == 2:
-                if checksum_valido:
-                    # Resposta de ACK (confirmação)
-                    resposta = f"ack|{pacote.numero_sequencia}"
-                    checksum_resposta = calcular_checksum_resposta(resposta)
-                    conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
-                    print(f"Enviado ACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
-                else:                
-                    resposta = f"nack|{pacote.numero_sequencia}|checksum"
+                if escolha == 2:
+                    print("Simulando atraso de 5 segundos...")
+                    time.sleep(5)
+                    resposta = f"nack|{pacote.numero_sequencia}|atraso"
                     checksum_resposta = calcular_checksum_resposta(resposta)
                     conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}", "utf-8"))
-                    print(f"Enviado NACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
+                    continue
+                if escolha == 3:
+                    
 
-            else:
-                    if checksum_valido and errorOcurred == False:
-                    # Resposta de ACK (confirmação)
+                    if checksum_valido:
                         resposta = f"ack|{pacote.numero_sequencia}"
                         checksum_resposta = calcular_checksum_resposta(resposta)
                         conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
                         print(f"Enviado ACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
-                    elif checksum_valido and errorOcurred:
+                    else:
+                        resposta = f"nack|{pacote.numero_sequencia}|checksum"
+                        checksum_resposta = calcular_checksum_resposta(resposta)
+                        conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}", "utf-8"))
+                        print(f"Enviado NACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
+
+                if (pacote.numero_sequencia == indice_erro) and not error_occurred:
+                    error_occurred = True
+                    print(f"Simulando falha de checksum no pacote {pacote.numero_sequencia}.")
+                    pacote.checksum = "00000000"
+
+                checksum_valido = calcular_checksum(pacote.mensagem) == pacote.checksum
+                if metodo == 2:
+                    if checksum_valido:
+                        resposta = f"ack|{pacote.numero_sequencia}"
+                        checksum_resposta = calcular_checksum_resposta(resposta)
+                        conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
+                        print(f"Enviado ACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
+                    else:
+                        resposta = f"nack|{pacote.numero_sequencia}|checksum"
+                        checksum_resposta = calcular_checksum_resposta(resposta)
+                        conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}", "utf-8"))
+                        print(f"Enviado NACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
+
+                else:
+                    if checksum_valido and not error_occurred:
+                        resposta = f"ack|{pacote.numero_sequencia}"
+                        checksum_resposta = calcular_checksum_resposta(resposta)
+                        conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
+                        print(f"Enviado ACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
+                    elif checksum_valido and error_occurred:
                         resposta = f"ack|{pacote_com_erro}"
                         checksum_resposta = calcular_checksum_resposta(resposta)
                         conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
                         print(f"Enviado ACK para pacote {pacote_com_erro} com checksum: {checksum_resposta}")
-                    else:                
+                    else:
                         resposta = f"ack|{pacote.numero_sequencia}"
                         checksum_resposta = calcular_checksum_resposta(resposta)
                         conexao_cliente.send(bytes(f"{resposta}|{checksum_resposta}$$", "utf-8"))
                         print(f"Enviado ACK para pacote {pacote.numero_sequencia} com checksum: {checksum_resposta}")
                         pacote_com_erro = pacote.numero_sequencia
+
+            except ConnectionAbortedError as e:
+                print(f"Conexão encerrada pelo cliente: {e}")
+                break
+            except Exception as e:
+                print(f"Erro inesperado: {e}")
+                break
 
         conexao_cliente.close()
 
